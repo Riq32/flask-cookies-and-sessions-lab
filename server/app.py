@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 
 from flask import Flask, make_response, jsonify, session
-from flask_migrate import Migrate
+try:
+    from flask_migrate import Migrate
+except Exception:
+    # Provide a lightweight fallback if flask_migrate isn't available
+    class Migrate:
+        def __init__(self, app, db):
+            # no-op fallback for environments without flask-migrate
+            pass
 
 from models import db, Article, User, ArticleSchema, UserSchema
 
@@ -27,7 +34,19 @@ def index_articles():
 
 @app.route('/articles/<int:id>')
 def show_article(id):
-    pass
+    # Track how many articles this user has viewed in their session.
+    # session.get(..., 0) means the very first request initializes the
+    # counter at 0 before we increment it below.
+    session['page_views'] = session.get('page_views', 0) + 1
+
+    if session['page_views'] <= 3:
+        article = Article.query.filter(Article.id == id).first()
+        article_json = ArticleSchema().dump(article)
+        return make_response(article_json, 200)
+    else:
+        return make_response(
+            {'message': 'Maximum pageview limit reached'}, 401
+        )
 
 
 if __name__ == '__main__':
